@@ -237,6 +237,7 @@ ENDIF
 !
 !$acc kernels
 IITER(D%NIJB:D%NIJE )=0
+PRREVAV(D%NIJB:D%NIJE )=0. ! Updated on each point by each of its own tendency computations
 !$acc loop independent
 DO JIJ=D%NIJB, D%NIJE 
   IF(LDMICRO(JIJ)) THEN
@@ -309,6 +310,18 @@ DO WHILE(ANY(ZTIME(D%NIJB:D%NIJE )<PTSTEP)) ! Loop to *really* compute tendencie
                         &ZA, ZB, ZATH, ZBTH, &
                         &PHLC_HCF, ZHLC_LCF, PHLC_HRC, ZHLC_LRC, &
                         &PHLI_HCF, ZHLI_LCF, PHLI_HRI, ZHLI_LRI, PRAINFR)
+
+    ! Rain evaporation diagnostic: each point keeps the rate of its own last tendency computation.
+    ! ICE4_TENDENCIES sets ZBU_INST to 0 where LLCOMPUTE is .FALSE., so copying it after the loops
+    ! would return 0 on every point that reached the end of the timestep before another point of the pack.
+!$acc kernels
+!$acc loop independent
+    DO JIJ=D%NIJB, D%NIJE
+      IF(LLCOMPUTE(JIJ)) THEN
+        PRREVAV(JIJ)=ZBU_INST(JIJ, IRREVAV)
+      ENDIF
+    ENDDO
+!$acc end kernels
 
     ! External tendencies
     IF(PARAMI%LEXT_TEND) THEN
@@ -547,11 +560,6 @@ IF(PARAMI%LEXT_TEND) THEN
   ENDDO
 !$acc end kernels
 ENDIF
-!$acc kernels
-DO JIJ=D%NIJB, D%NIJE 
-  PRREVAV(JIJ)=ZBU_INST(JIJ, IRREVAV)
-ENDDO
-!$acc end kernels
 !
 IF (LHOOK) CALL DR_HOOK('ICE4_STEPPING', 1, ZHOOK_HANDLE)
 END SUBROUTINE ICE4_STEPPING
